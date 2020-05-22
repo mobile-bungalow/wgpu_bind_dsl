@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["mobile-bungalow <pwmay@ucsc.edu>"]
 edition = "2018"
 description = "An experimental macro dsl for describing Bind layouts in wgpu-rs"
-license = ["MIT"]
+license = "MIT"
 
 [dev-dependencies]
 wgpu = "0.5.0"
