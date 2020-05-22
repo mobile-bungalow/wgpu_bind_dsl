@@ -75,6 +75,10 @@ macro_rules! binding_layout {
     ([$($t:expr,)*] ; $name:expr ; ) => { wgpu::BindGroupLayoutDescriptor { label: $name, bindings: &[$($t,)*] } };
 }
 
+/// internal use only
+/// converts a type expression into its `wgpu::BindingType` equivalent. this only works for the
+/// subset of types that do not use the pseudo generics notation. which is to say Buffers,
+/// StorageBuffers, and Samplers.
 #[macro_export]
 macro_rules! only_traits {
     (Buffer ; ; ) => {
@@ -123,6 +127,7 @@ macro_rules! only_traits {
 }
 
 /// internal use only
+/// converts a Type expression into its `wgpu::BindingType` equivalent
 #[macro_export]
 macro_rules! generics {
     ( $texType:ident ; ; $($trait1:ident)? ; ; $($trait2:ident)? ; ) => {
@@ -161,6 +166,9 @@ macro_rules! generics {
     };
 }
 
+/// internal use only
+/// converts a texture expression to a tuple of its dimension and a bool indicating whether or not
+/// it is multisampled.
 #[macro_export]
 macro_rules! d {
     (Tex1D) => {
@@ -198,7 +206,9 @@ macro_rules! d {
     };
 }
 
-// for internal use only but this one might actually be usefull
+/// for internal use only.
+/// converts a visibility expression into its equivalent `wgpu::ShaderStage` bitflag
+/// representation. only works on expression of up to three items.
 #[macro_export]
 macro_rules! vis {
     ( Vertex ) => {
