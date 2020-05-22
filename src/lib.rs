@@ -2,21 +2,26 @@
 /// ## Syntax
 /// ( visibility expression | field ) => { ( bind_location => type )* }
 ///
-/// visibility expressions : Fragment, Vertex, Compute, None. these can be enclosed in brackets and
-/// seperated with the binary or operator to use multiple visibility flags. this corresponds to the
-/// `visibility` field in the `wgpu::BindGroupLayoutEntry` struct.
+/// visibility expressions:  Fragment, Vertex, Compute, None.
 ///
-/// fields: Label. instead of taking a binding label takes a &'static str literal. this field is
+/// these can be enclosed in brackets and seperated with the binary or operator to use multiple visibility flags. this corresponds to the
+/// visibility field in the `wgpu::BindGroupLayoutEntry` struct.
+///
+/// fields: Label
+///
+/// instead of taking a binding label takes a &'static str literal. this field is
 /// totally optional and corresponds with the `label` field in the `wgpu::BindGroupLayoutEntry`
 /// struct
 ///
 /// textures are described using their equivalent opengl samplers, in the form Tex{Dimension}{MS}?
+/// i.e. `Tex2DArrayMS` being an sampled texture with dimension `D2Array` with multisampling turned
+/// on.
 ///
 /// type:
 ///       Buffer: (Dyn)?,
 ///       StorageBuffer: (Dyn)? + (Readonly)? ,
 ///       Sampler: (Cmp)?,
-///       glsl_sampler_decl<ComponentType>: (Storage(format))? + (Readonly)?
+///       glsl_sampler_decl<ComponentType>: (Storage<format>)? + (Readonly)?
 ///
 /// Usage:
 ///```
@@ -58,9 +63,9 @@ macro_rules! binding_layout {
                     visibility: $crate::vis!($vis),
                     ty: $crate::generics!($binding ; $($generic)? ; $($($trait1)?)? ; $($($($tgen1)?)?)? ; $($($trait2)?)? ; $($($($tgen2)?)?)? ),
                 },)*] ;
-        $name;
-        $($ll => $ii,)*
-            );
+            $name;
+            $($ll => $ii,)*
+        );
     };
     // special case for naming
     ([$($t:expr,)*] ; $old_name:expr ;  Label => $name:expr, $($ll:tt => $ii:tt,)*) => {
@@ -244,8 +249,8 @@ mod test {
         let a = binding_layout! {
             Label => "named",
             { Compute | Fragment } => {
-                1 => Buffer: Dyn,
-            },
+                                          1 => Buffer: Dyn,
+                                      },
         };
 
         assert_eq!(a.label, Some("named"));
@@ -266,9 +271,9 @@ mod test {
         let a = binding_layout! {
             Label => "named",
             { Compute | Fragment } => {
-                2 => Tex1D<Float>: Storage<R8Unorm> + Readonly,
-                4 => Buffer,
-            },
+                                          2 => Tex1D<Float>: Storage<R8Unorm> + Readonly,
+                                          4 => Buffer,
+                                      },
         };
 
         assert_eq!(a.label, Some("named"));
@@ -287,5 +292,75 @@ mod test {
             a.bindings[0].visibility,
             wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::COMPUTE
         );
+    }
+    #[test]
+    fn long() {
+        let a = binding_layout! {
+            { Vertex | Fragment } => {
+                    0 => Tex1D<Float>: Storage<R8Unorm> + Readonly,
+                    1 => Tex2D<Sint>: Readonly + Storage<Rgba32Uint>,
+                    2 => StorageBuffer: Dyn,
+                    3 => StorageBuffer,
+                    4 => Buffer: Dyn,
+                    5 => Buffer,
+            },
+        };
+
+        let b = &[
+            wgpu::BindGroupLayoutEntry {
+                ty: wgpu::BindingType::StorageTexture {
+                    dimension: wgpu::TextureViewDimension::D1,
+                    component_type: wgpu::TextureComponentType::Float,
+                    readonly: true,
+                    format: wgpu::TextureFormat::R8Unorm,
+                },
+                binding: 0,
+                visibility: wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::VERTEX,
+            },
+            wgpu::BindGroupLayoutEntry {
+                ty: wgpu::BindingType::StorageTexture {
+                    dimension: wgpu::TextureViewDimension::D2,
+                    component_type: wgpu::TextureComponentType::Sint,
+                    readonly: true,
+                    format: wgpu::TextureFormat::Rgba32Uint,
+                },
+                binding: 1,
+                visibility: wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::VERTEX,
+            },
+            wgpu::BindGroupLayoutEntry {
+                ty: wgpu::BindingType::StorageBuffer {
+                    dynamic: true,
+                    readonly: false,
+                },
+                binding: 2,
+                visibility: wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::VERTEX,
+            },
+            wgpu::BindGroupLayoutEntry {
+                ty: wgpu::BindingType::StorageBuffer {
+                    dynamic: false,
+                    readonly: false,
+                },
+                binding: 3,
+                visibility: wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::VERTEX,
+            },
+            wgpu::BindGroupLayoutEntry {
+                ty: wgpu::BindingType::UniformBuffer { dynamic: true },
+                binding: 4,
+                visibility: wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::VERTEX,
+            },
+            wgpu::BindGroupLayoutEntry {
+                ty: wgpu::BindingType::UniformBuffer { dynamic: false },
+                binding: 5,
+                visibility: wgpu::ShaderStage::FRAGMENT | wgpu::ShaderStage::VERTEX,
+            },
+        ];
+
+        assert_eq!(a.label, None);
+
+        a.bindings.iter().zip(b.iter()).for_each(|(a, b)| {
+            assert_eq!(a.ty, b.ty);
+            assert_eq!(a.binding, b.binding);
+            assert_eq!(a.visibility, b.visibility);
+        });
     }
 }
