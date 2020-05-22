@@ -42,11 +42,11 @@ binding_layout! {
   { Vertex |  Fragment } => {
       0 => Buffer,
       1 => Buffer,
-  }
+  },
   Fragment => {
      2 => Tex2DArray<Float>,
-     3 => Sample: Cmp,
-  }
+     3 => Sampler: Cmp,
+  },
 };
 ```
 
