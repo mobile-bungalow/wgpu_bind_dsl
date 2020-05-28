@@ -1,7 +1,7 @@
 [package]
 name = "wgpu_bind_dsl"
-version = "0.1.0"
-authors = ["mobile-bungalow <pwmay@ucsc.edu>"]
+version = "0.1.1"
+authors = ["mobile-bungalow <wellbeingwands.life>"]
 edition = "2018"
 description = "An experimental macro dsl for describing Bind layouts in wgpu-rs"
 license = "MIT"

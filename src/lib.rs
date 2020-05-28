@@ -1,29 +1,83 @@
-/// this macro builds a `wgpu::BindingLayoutDescriptor` with a format not unlike json.
+/// builds a `wgpu::BindingLayoutDescriptor` with a format not unlike json.
 /// ## Syntax
-/// ( visibility expression | field ) => { ( bind_location => type )* }
 ///
-/// visibility expressions:  Fragment, Vertex, Compute, None.
+///  the syntax is complex enough that explaining it with a BNF is harder than just
+///  learning to read it. so here is a series of examples that show in increasingly complex ways
+///  how to use the macro.
 ///
-/// these can be enclosed in brackets and seperated with the binary or operator to use multiple visibility flags. this corresponds to the
-/// visibility field in the `wgpu::BindGroupLayoutEntry` struct.
+///  here is the BNF anyways.
+///  ```compile_fail
+///  <valid_input> ::= <visibility_expr> "=>" <binding_expr>","
+///                  | <valid_input> <valid_input>
+///                  | <empty>
 ///
-/// fields: Label
+///  <visibility_expr> ::=  "Vertex"
+///                       | "Fragment"
+///                       | "Compute"
+///                       | "None"
+///                       | "Label" | "{" <visibility_expr> "|" <visibility_expr> "}"
 ///
-/// instead of taking a binding label takes a &'static str literal. this field is
-/// totally optional and corresponds with the `label` field in the `wgpu::BindGroupLayoutEntry`
-/// struct
+///  <binding_expr> ::= | <digit> "=>" <binding>","
+///                     | "{" <binding_expr> <binding_expr>  "}"
+///                     | "{" <empty> "}"
 ///
-/// textures are described using their equivalent opengl samplers, in the form Tex{Dimension}{MS}?
-/// i.e. `Tex2DArrayMS` being an sampled texture with dimension `D2Array` with multisampling turned
-/// on.
+///  <binding> ::= <buffer> | <texture> | <sampler>
 ///
-/// type:
-///       Buffer: (Dyn)?,
-///       StorageBuffer: (Dyn)? + (Readonly)? ,
-///       Sampler: (Cmp)?,
-///       glsl_sampler_decl<ComponentType>: (Storage<format>)? + (Readonly)?
+///  // Dyn here sets the buffer to a dynamic buffer. note that order on the traits does not matter.
+///  <buffer> ::= "Buffer"
+///             | "Buffer: Dyn"
+///             | "StorageBuffer"
+///             | "StorageBuffer: Dyn"
+///             | "StorageBuffer: Dyn + Readonly"
 ///
-/// Usage:
+///  // Cmp here sets the sampler to a comparison sampler.
+///  <sampler> ::= "Sampler" | "Sampler: Cmp,"
+///
+///  <texture> ::= <tex_type>"<"<component_type>">"<tex_traits>
+///
+///  // any texture type suffixed with MS is multisampled, this does nothing for storage textures.
+///  <tex_type> ::= "Tex1D" | "Tex1DMS"
+///               | "Tex2D" | "Tex2DMS"
+///               | "Tex3D" | "Tex3DMS"
+///               | "Tex2DArray"| "Tex2DArrayMS"
+///               |  "TexCubeArray" | "TexCubeArrayMS"
+///               | "TexCube" | "TexCubeMS" |
+///
+///  <component_type> ::= "Float" | "Sint" | "Uint"
+///
+///  <tex_traits> ::= <empty>
+///               | "Storage<" <storage_type> ">"
+///               | "Readonly"
+///               | <tex_traits> "+" <tex_traits>
+///
+/// <storage_type> ::= // Any variant from `wgpu::TextureFormat`
+///
+///  ```
+///
+/// ## An empty bind group
+/// an empty bind group with no label can be made by default.
+/// ```
+/// # use wgpu_bind_dsl::binding_layout;
+/// # use wgpu;
+///
+/// let desc = binding_layout!{};
+/// let equivalent =  wgpu::BindGroupLayoutDescriptor { label: None, bindings: &[]};
+///
+/// assert_eq!(desc.bindings.len(), 0);
+/// assert_eq!(desc.label, equivalent.label);
+/// ```
+///
+/// ## Single buffer and a label
+/// ```
+/// # use wgpu_bind_dsl::binding_layout;
+///
+/// let desc = binding_layout! {
+///              Label => "named",
+///             { Compute | Fragment } => { 1 => Buffer, },
+///        };
+/// ```
+///
+/// ## Big Usage:
 ///```
 /// # use wgpu_bind_dsl::binding_layout;
 ///  let desc = binding_layout! {
@@ -45,6 +99,13 @@
 ///     },
 /// };
 ///```
+///
+/// F.A.Q:
+/// Q: why isn't this a proc macro?
+/// A: writing this as a macro by example was actually easier given the current tooling hurt of
+/// rolling a proc macro. this is less hygenic but I don't like adding dev dependencies to
+/// projects. turning this into a proc macro in the future is a definite possibility.
+///
 ///
 #[macro_export]
 macro_rules! binding_layout {
@@ -192,7 +253,7 @@ macro_rules! d {
     (Tex2DArray) => {
         (wgpu::TextureViewDimension::D2Array, false)
     };
-    (Tex2DArrayMs) => {
+    (Tex2DArrayMS) => {
         (wgpu::TextureViewDimension::D2Array, true)
     };
     (TexCube) => {
@@ -201,7 +262,7 @@ macro_rules! d {
     (TexCubeMS) => {
         (wgpu::TextureViewDimension::CubeArray, false)
     };
-    (TexCubeArrayMs) => {
+    (TexCubeArrayMS) => {
         (wgpu::TextureViewDimension::CubeArray, true)
     };
 }
@@ -234,6 +295,7 @@ macro_rules! vis {
 #[cfg(test)]
 mod test {
     use wgpu;
+
     #[test]
     fn buffers_and_names() {
         let a = binding_layout! {
@@ -307,13 +369,13 @@ mod test {
     fn long() {
         let a = binding_layout! {
             { Vertex | Fragment } => {
-                    0 => Tex1D<Float>: Storage<R8Unorm> + Readonly,
-                    1 => Tex2D<Sint>: Readonly + Storage<Rgba32Uint>,
-                    2 => StorageBuffer: Dyn,
-                    3 => StorageBuffer,
-                    4 => Buffer: Dyn,
-                    5 => Buffer,
-            },
+                                         0 => Tex1D<Float>: Storage<R8Unorm> + Readonly,
+                                         1 => Tex2D<Sint>: Readonly + Storage<Rgba32Uint>,
+                                         2 => StorageBuffer: Dyn,
+                                         3 => StorageBuffer,
+                                         4 => Buffer: Dyn,
+                                         5 => Buffer,
+                                     },
         };
 
         let b = &[
